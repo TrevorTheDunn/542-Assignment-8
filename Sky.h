@@ -67,6 +67,11 @@ public:
 
 	void Draw(std::shared_ptr<Camera> camera);
 
+	// IBL Public Functions
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> GetIrradianceMap();
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> GetSpecularMap();
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> GetBRDFLookUpTexture();
+
 private:
 
 	void InitRenderStates();
@@ -88,6 +93,11 @@ private:
 		Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> front,
 		Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> back);
 
+	// IBL Private Functions
+	void IBLCreateIrradianceMap(int cubeFaceSize);
+	void IBLCreateConvolvedSpecularMap(int cubeFaceSize);
+	void IBLCreateBRDFLookUpTexture(int textureSize);
+
 	// Skybox related resources
 	std::shared_ptr<SimpleVertexShader> skyVS;
 	std::shared_ptr<SimplePixelShader> skyPS;
@@ -101,5 +111,12 @@ private:
 	Microsoft::WRL::ComPtr<ID3D11SamplerState> samplerOptions;
 	Microsoft::WRL::ComPtr<ID3D11DeviceContext> context;
 	Microsoft::WRL::ComPtr<ID3D11Device> device;
+
+	// IBL Private Data
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> irradianceIBL;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> specularIBL;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> brdfMap;
+	const int specIBLMipLevelsToSkip = 3; // Want to skip several lower mip levels (1x1, 2x2, etc.)
+	int totalSpecIBLMipLevels;			  // Determined by cube face size
 };
 
