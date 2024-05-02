@@ -1,11 +1,28 @@
+//
+//// Constant Buffer for external (C++) data
+//cbuffer externalData : register(b0)
+//{
+//	matrix world;
+//	matrix worldInverseTranspose;
+//	matrix view;
+//	matrix projection;
+//};
 
-// Constant Buffer for external (C++) data
-cbuffer externalData : register(b0)
+cbuffer perFrame : register(b0)
+{
+	matrix view;
+	matrix projection;
+};
+
+cbuffer perMaterial : register(b1)
+{
+
+};
+
+cbuffer perObject : register(b2)
 {
 	matrix world;
 	matrix worldInverseTranspose;
-	matrix view;
-	matrix projection;
 };
 
 // Struct representing a single vertex worth of data

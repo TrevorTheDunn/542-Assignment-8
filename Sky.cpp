@@ -47,6 +47,10 @@ Sky::Sky(
 {
 	// Init render states
 	InitRenderStates();
+
+	IBLCreateIrradianceMap(512);
+	IBLCreateConvolvedSpecularMap(512);
+	IBLCreateBRDFLookUpTexture(1024);
 }
 
 Sky::Sky(
@@ -76,6 +80,10 @@ Sky::Sky(
 
 	// Create texture from 6 images
 	skySRV = CreateCubemap(right, left, up, down, front, back);
+
+	IBLCreateIrradianceMap(512);
+	IBLCreateConvolvedSpecularMap(512);
+	IBLCreateBRDFLookUpTexture(1024);
 }
 
 Sky::Sky(
@@ -105,6 +113,10 @@ Sky::Sky(
 
 	// Create texture from 6 images
 	skySRV = CreateCubemap(right, left, up, down, front, back);
+
+	IBLCreateIrradianceMap(512);
+	IBLCreateConvolvedSpecularMap(512);
+	IBLCreateBRDFLookUpTexture(1024);
 }
 
 Sky::~Sky()
@@ -140,17 +152,22 @@ void Sky::Draw(std::shared_ptr<Camera> camera)
 
 Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> Sky::GetIrradianceMap()
 {
-	return Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>();
+	return irradianceIBL;
 }
 
 Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> Sky::GetSpecularMap()
 {
-	return Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>();
+	return specularIBL;
 }
 
 Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> Sky::GetBRDFLookUpTexture()
 {
-	return Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>();
+	return brdfMap;
+}
+
+int Sky::GetTotalSpecularIBLMipsLevels()
+{
+	return totalSpecIBLMipLevels;
 }
 
 void Sky::InitRenderStates()

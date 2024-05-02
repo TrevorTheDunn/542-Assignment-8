@@ -26,6 +26,8 @@ cbuffer perFrame : register(b1)
 
 	// Needed for specular (reflection) calculation
 	float3 cameraPosition;
+
+	int specIBLTotalMipLevels;
 };
 
 
@@ -46,7 +48,13 @@ Texture2D Albedo			: register(t0);
 Texture2D NormalMap			: register(t1);
 Texture2D RoughnessMap		: register(t2);
 Texture2D MetalMap			: register(t3);
+
+Texture2D BrdfLookUpMap		: register(t4);
+TextureCube IrradianceIBLMap: register(t5);
+TextureCube SpecularIBLMap	: register(t6);
+
 SamplerState BasicSampler	: register(s0);
+SamplerState ClampSampler	: register(s1);
 
 
 // Entry point for this pixel shader
@@ -95,6 +103,26 @@ float4 main(VertexToPixel input) : SV_TARGET
 			break;
 		}
 	}
+
+	// Calculate requisite reflection vectors
+	float3 viewToCam = normalize(cameraPosition - input.worldPos);
+	float3 viewRefl = normalize(reflect(-viewToCam, input.normal));
+	float NdotV = saturate(dot(input.normal, viewToCam));
+
+	// Indirect lighting
+	float3 indirectDiffuse = IndirectDiffuse(IrradianceIBLMap, BasicSampler, input.normal);
+	float3 indirectSpecular = IndirectSpecular(
+		SpecularIBLMap, specIBLTotalMipLevels,
+		BrdfLookUpMap, ClampSampler, // MUST use the clamp sampler here!
+		viewRefl, NdotV,
+		roughness, specColor);
+
+	// Balance indirect diff/spec
+	float3 balancedDiff = DiffuseEnergyConserve(indirectDiffuse, specColor, metal);
+	float3 fullIndirect = indirectSpecular + balancedDiff * surfaceColor.rgb;
+
+	// Add the indirect to the direct
+	totalColor += fullIndirect;
 
 	// Gamma correction
 	return float4(pow(totalColor, 1.0f / 2.2f), 1);

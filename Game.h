@@ -46,6 +46,7 @@ private:
 
 	// Texture related resources
 	Microsoft::WRL::ComPtr<ID3D11SamplerState> samplerOptions;
+	Microsoft::WRL::ComPtr<ID3D11SamplerState> clampSampler;
 
 	// Skybox
 	std::shared_ptr<Sky> sky;

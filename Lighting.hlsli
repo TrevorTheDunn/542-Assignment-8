@@ -2,6 +2,10 @@
 #ifndef _LIGHTING_HLSL
 #define _LIGHTING_HLSL
 
+#define MAX_IBL_SAMPLES					4096
+#define IRRADIANCE_SAMPLE_STEP_PHI		0.025f
+#define IRRADIANCE_SAMPLE_STEP_THETA	0.025f
+
 #define LIGHT_TYPE_DIRECTIONAL	0
 #define LIGHT_TYPE_POINT		1
 #define LIGHT_TYPE_SPOT			2
@@ -245,7 +249,7 @@ float3 MicrofacetBRDF(float3 n, float3 l, float3 v, float roughness, float metal
 //
 // Metals should have an albedo of (0,0,0)...mostly
 // See slide 65: http://blog.selfshadow.com/publications/s2014-shading-course/hoffman/s2014_pbs_physics_math_slides.pdf
-float3 DiffuseEnergyConserve(float diffuse, float3 specular, float metalness)
+float3 DiffuseEnergyConserve(float3 diffuse, float3 specular, float metalness)
 {
 	return diffuse * ((1 - saturate(specular)) * (1 - metalness));
 }
@@ -304,5 +308,75 @@ float3 SpotLightPBR(Light light, float3 normal, float3 worldPos, float3 camPos, 
 	return PointLightPBR(light, normal, worldPos, camPos, roughness, metalness, surfaceColor, specularColor) * penumbra;
 }
 
+
+// IBL Helper Functions
+
+// IndirectDiffuse - Sample in the given direction (compensate for gamma)
+float3 IndirectDiffuse(TextureCube irrMap, SamplerState samp, float3 direction)
+{
+	// Sample in the specified direction - the irradiance map
+	// is a pre-computed cube map which representes light
+	// coming into this pixel from a particular hemisphere
+	float3 diff = irrMap.SampleLevel(samp, direction, 0).rgb;
+	return pow(abs(diff), 2.2f);
+}
+
+// IndirectSpecular
+float3 IndirectSpecular(TextureCube envMap, int mips, Texture2D brdfLookUp, SamplerState samp,
+						float3 viewRefl, float NdotV, float roughness, float3 specColor)
+{
+	// Ensure roughness isn't zero
+	roughness = max(roughness, MIN_ROUGHNESS);
+
+	// Calculate half of the split-sum approx (this texutre is not gamma-corrected, as it just holds raw data)
+	float2 indirectBRDF = brdfLookUp.Sample(samp, float2(NdotV, roughness)).rg;
+	float3 indSpecFresnel = specColor * indirectBRDF.x + indirectBRDF.y; // Spec color is f0
+
+	// Sample the convolved environment map (other half of split-sum)
+	float3 envSample = envMap.SampleLevel(samp, viewRefl, roughness * (mips - 1)).rgb;
+
+	// Adjust environment sample by fresnel
+	return pow(abs(envSample), 2.2f) * indSpecFresnel;
+}
+
+// radicalInverse_VdC - Generates float value in [0, 1) range
+// that appears to "jump around"
+float radicalInverse_VdC(uint bits)
+{
+	bits = (bits << 16u) | (bits >> 16u);
+	bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
+	bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
+	bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);
+	bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
+	return float(bits) * 2.3283064365386963e-10;
+}
+
+// Hammersly2d - Generates spaced-out 2D points from an int
+float2 Hammersley2d(uint i, uint N)
+{
+	return float2(float(i) / float(N), radicalInverse_VdC(i));
+}
+
+// ImportanceSampleGGX - Generates a 3D direction offset from a normal (N)
+float3 ImportanceSampleGGX(float2 Xi, float roughness, float3 N)
+{
+	float a = roughness * roughness;
+
+	float Phi = 2 * PI * Xi.x;
+	float CosTheta = sqrt((1 - Xi.y) / (1 + (a * a - 1) * Xi.y));
+	float SinTheta = sqrt(1 - CosTheta * CosTheta);
+
+	float3 H;
+	H.x = SinTheta * cos(Phi);
+	H.y = SinTheta * sin(Phi);
+	H.z = CosTheta;
+
+	float3 upVector = abs(N.z) < 0.999f ? float3(0, 0, 1) : float3(1, 0, 0);
+	float3 TangentX = normalize(cross(upVector, N));
+	float3 TangentY = cross(N, TangentX);
+
+	// Tangent to world space
+	return TangentX * H.x + TangentY * H.y + N * H.z;
+}
 
 #endif
